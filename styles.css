@@ -277,3 +277,14 @@ tfoot td { font-weight: 700; border-bottom: 0; }
   .card { box-shadow: none; break-inside: avoid; }
 }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.subs { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 2px; }
+.subs li { font-size: 12px; }
+.subs li label { display: flex; gap: 6px; align-items: flex-start; cursor: pointer; }
+.subs li input { width: 14px; height: 14px; margin-top: 2px; }
+.subs li.done label { color: var(--muted); text-decoration: line-through; }
+.pre { white-space: pre-line; }
+td .title-cell + br + small, td small.pre { display: block; max-width: 520px; white-space: pre-line; }
+a.plain { color: inherit; text-decoration: none; }
+a.plain:hover { text-decoration: underline; }
+td:has(.title-cell), td:has(.subs), td:has(.pre) { white-space: normal; min-width: 260px; }
