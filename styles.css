@@ -215,6 +215,21 @@ tfoot td { font-weight: 700; border-bottom: 0; }
 .bar-row .bar span { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
 .bar-row .amt { text-align: right; font-variant-numeric: tabular-nums; }
 
+/* ---------- 요청·결재 ---------- */
+.req-flow { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 4px; }
+.req-flow .step { font-size: 12px; font-weight: 600; color: var(--muted); background: var(--surface-2); padding: 2px 10px; border-radius: 999px; position: relative; }
+.req-flow .step + .step::before { content: "›"; position: absolute; left: -7px; top: 1px; color: var(--muted); }
+.req-flow .step.past { color: var(--ok); background: var(--ok-weak); }
+.req-flow .step.now { color: var(--accent); background: var(--accent-weak); outline: 1px solid var(--accent); }
+.req-flow .step.now.off { color: var(--warn); background: var(--warn-weak); outline-color: var(--warn); }
+details.checks { margin-top: 4px; white-space: normal; }
+details.checks summary { font-size: 12px; color: var(--accent); cursor: pointer; font-weight: 600; width: max-content; }
+details.checks ul { list-style: none; margin: 4px 0 2px; padding: 0; display: grid; gap: 2px; }
+details.checks .check { padding: 1px 0; font-size: 12px; }
+details.checks .check:has(input:checked) { color: var(--muted); text-decoration: line-through; }
+td.wrap { white-space: normal; min-width: 260px; }
+.danger-text { color: var(--danger); }
+
 .note { font-size: 12px; color: var(--muted); background: var(--surface-2); border-radius: 8px; padding: 10px 12px; margin-top: 12px; }
 .note ul { margin: 4px 0 0; padding-left: 18px; }
 .welcome { border-color: var(--accent); background: var(--accent-weak); }
