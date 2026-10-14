@@ -105,12 +105,12 @@ const RULES = [
   { id: 'salary-next', cat: '인사', months: [12], day: 15, title: '차년도 최저임금 반영 · 연봉/근로계약 갱신 검토' },
 ];
 
-const CAT_CLASS = { 세무: 'c1', '4대보험': 'c2', 인사: 'c3', 휴가: 'c3', 총무: 'c4', 회계: 'c5', 정부지원: 'c6', '할 일': 'c7', 기타: 'c8' };
+const CAT_CLASS = { 세무: 'c1', '4대보험': 'c2', 인사: 'c3', 휴가: 'c3', 총무: 'c4', 회계: 'c5', 정부지원: 'c6', 영업: 'c4', 자사서비스: 'c2', 경영지원: 'c7', '할 일': 'c7', 기타: 'c8' };
 const catClass = (c) => CAT_CLASS[c] || 'c8';
 
 /* ---------- 선택지 ---------- */
 const OPT = {
-  cat: ['인사', '총무', '회계', '세무', '4대보험', '정부지원', '기타'],
+  cat: ['경영지원', '인사', '총무', '회계', '세무', '4대보험', '정부지원', '영업', '자사서비스', '기타'],
   account: ['복리후생비', '여비교통비', '기업업무추진비(접대비)', '통신비', '소모품비', '지급수수료', '임차료', '도서인쇄비', '교육훈련비', '광고선전비', '차량유지비', '세금과공과', '보험료', '외주용역비', '연구개발비', '비품(자산)', '기타'],
   payMethod: ['법인카드', '계좌이체', '현금', '개인카드(정산)', '자동이체'],
   evidence: ['세금계산서', '계산서', '카드전표', '현금영수증', '간이영수증', '없음'],
@@ -127,10 +127,42 @@ const SCHEMA = {
       { k: 'category', l: '분류', t: 'select', o: OPT.cat, d: '기타' },
       { k: 'due', l: '마감일', t: 'date' },
       { k: 'priority', l: '우선순위', t: 'select', o: ['높음', '보통', '낮음'], d: '보통', badge: 1 },
-      { k: 'status', l: '상태', t: 'select', o: ['대기', '진행', '완료'], d: '대기', badge: 1 },
-      { k: 'memo', l: '메모', t: 'textarea', wide: 1 },
+      { k: 'status', l: '상태', t: 'select', o: ['대기', '진행', '완료', '보류'], d: '대기', badge: 1 },
+      { k: 'kind', l: '종류', t: 'select', o: ['업무', '상시'], d: '업무', h: '"상시"는 필요할 때 처리하는 매뉴얼성 업무 (마감 없음)' },
+      { k: 'desc', l: '처리 방법·설명', t: 'textarea', wide: 1 },
+      { k: 'subtasks', l: '하위 작업', t: 'lines', wide: 1, h: '한 줄에 하나. 완료된 항목은 앞에 [x]' },
+      { k: 'ref', l: '참고 자료', t: 'text', wide: 1, h: '파일명, 채널, 링크 등' },
+      { k: 'memo', l: '메모', t: 'text', wide: 1 },
     ],
     cols: ['done', 'due', 'category', 'title', 'priority', 'status'],
+  },
+  issues: {
+    name: '이슈',
+    fields: [
+      { k: 'name', l: '이슈명', t: 'text', req: 1, wide: 1 },
+      { k: 'date', l: '발생일', t: 'date', d: () => today() },
+      { k: 'category', l: '분류', t: 'select', o: OPT.cat, d: '경영지원' },
+      { k: 'status', l: '상태', t: 'select', o: ['발생', '조치 중', '해결 완료'], d: '발생', badge: 1 },
+      { k: 'owner', l: '담당', t: 'text' },
+      { k: 'content', l: '내용', t: 'textarea', wide: 1 },
+      { k: 'cause', l: '원인', t: 'textarea', wide: 1 },
+      { k: 'prevention', l: '재발 방지', t: 'textarea', wide: 1 },
+    ],
+    cols: ['date', 'category', 'name', 'cause', 'prevention', 'status'],
+  },
+  ideas: {
+    name: '검토 과제',
+    fields: [
+      { k: 'name', l: '과제명', t: 'text', req: 1, wide: 1 },
+      { k: 'category', l: '분류', t: 'select', o: OPT.cat, d: '경영지원' },
+      { k: 'status', l: '상태', t: 'select', o: ['고민 중', '정리 중', '진행 중', '완료', '보류'], d: '고민 중', badge: 1 },
+      { k: 'priority', l: '우선순위', t: 'select', o: ['높음', '보통', '낮음'], d: '보통', badge: 1 },
+      { k: 'due', l: '결정 기한', t: 'date' },
+      { k: 'concern', l: '고민·쟁점', t: 'textarea', wide: 1 },
+      { k: 'subtasks', l: '하위 작업', t: 'lines', wide: 1, h: '한 줄에 하나. 완료된 항목은 앞에 [x]' },
+      { k: 'note', l: '메모', t: 'text', wide: 1 },
+    ],
+    cols: ['category', 'name', 'priority', 'status', 'due'],
   },
   employees: {
     name: '직원',
@@ -247,18 +279,23 @@ const SCHEMA = {
     fields: [
       { k: 'title', l: '일정명', t: 'text', req: 1, wide: 1 },
       { k: 'cat', l: '분류', t: 'select', o: OPT.cat, d: '기타' },
-      { k: 'months', l: '월', t: 'text', d: '매월', h: '"매월" 또는 "1,4,7,10" 처럼 입력' },
-      { k: 'day', l: '일', t: 'text', d: '10', h: '숫자 또는 "말일"' },
-      { k: 'note', l: '설명', t: 'text', wide: 1 },
+      { k: 'kind', l: '주기', t: 'select', o: ['매일', '매주', '매월', '분기', '매년'], d: '매월', h: '"매일"은 달력 대신 대시보드의 오늘 루틴에 표시' },
+      { k: 'weekday', l: '요일 (매주)', t: 'select', o: [[1, '월'], [2, '화'], [3, '수'], [4, '목'], [5, '금'], [6, '토'], [0, '일']] },
+      { k: 'day', l: '일 (매월·분기·매년)', t: 'text', d: '1', h: '숫자 또는 "말일"' },
+      { k: 'months', l: '월 (분기·매년)', t: 'text', h: '"1,4,7,10" 처럼 입력' },
+      { k: 'time', l: '시각', t: 'text', h: '예: 09:30' },
+      { k: 'note', l: '처리 방법·설명', t: 'textarea', wide: 1 },
+      { k: 'ref', l: '참고 자료', t: 'text', wide: 1 },
     ],
-    cols: ['title', 'cat', 'months', 'day', 'note'],
+    cols: ['title', 'cat', 'kind', 'when', 'note'],
+    validate: (d) => (d.kind === '매주' && d.weekday === '' ? '요일을 선택하세요.' : ''),
   },
 };
 
 const DEFAULTS = {
   version: 1,
   settings: { company: '제로스트에이아이', payday: 25, lookahead: 45, holidays: DEFAULT_HOLIDAYS, theme: 'auto', lastBackup: '', since: '' },
-  todos: [], employees: [], leaves: [], expenses: [], grants: [], assets: [], contracts: [], customRules: [],
+  todos: [], employees: [], leaves: [], expenses: [], grants: [], assets: [], contracts: [], customRules: [], issues: [], ideas: [],
   done: {},
 };
 
@@ -291,7 +328,7 @@ if (!state.settings.since) { state.settings.since = today(); save(); }
 const ui = {
   calMonth: today().slice(0, 7),
   hrTab: 'employees', adminTab: 'contracts',
-  todoStatus: 'open', todoQ: '',
+  todoStatus: 'open', todoQ: '', todoTab: 'todos',
   expMonth: today().slice(0, 7), expGrant: '', expQ: '',
   leaveEmp: '', empQ: '', showRetired: false,
 };
@@ -319,12 +356,37 @@ function parseMonths(t) {
   if (!t || /매월|all/i.test(t)) return 'all';
   return t.split(/[,\s/]+/).map(Number).filter((n) => n >= 1 && n <= 12);
 }
+const ruleKind = (r) => r.kind || (/매월|all|^$/i.test(String(r.months || '').trim()) ? '매월' : '매년');
+function ruleWhen(r) {
+  const k = ruleKind(r); const d = /말/.test(r.day) ? '말일' : `${num(r.day) || 1}일`; const t = r.time ? ` ${r.time}` : '';
+  if (k === '매일') return `매일${t}`;
+  if (k === '매주') return `매주 ${WD[num(r.weekday)]}요일${t}`;
+  if (k === '매월') return `매월 ${d}${t}`;
+  return `${k} ${(parseMonths(r.months) === 'all' ? [] : parseMonths(r.months)).join('·')}월 ${d}${t}`;
+}
 function allRules() {
   return [
     ...RULES,
-    ...state.customRules.map((r) => ({ id: `c-${r.id}`, title: r.title, cat: r.cat || '기타', months: parseMonths(r.months), day: /말/.test(r.day) ? 'last' : num(r.day), note: r.note })),
+    ...state.customRules.filter((r) => ['매월', '분기', '매년'].includes(ruleKind(r))).map((r) => {
+      let months = ruleKind(r) === '매월' ? 'all' : parseMonths(r.months);
+      if (months === 'all' && ruleKind(r) === '분기') months = [1, 4, 7, 10];
+      return { id: `c-${r.id}`, title: r.title, cat: r.cat || '기타', months, day: /말/.test(r.day) ? 'last' : num(r.day) || 1, note: r.note, time: r.time };
+    }),
   ];
 }
+function weeklyEvents(from, to) {
+  const out = []; const hs = holidayMap();
+  for (const r of state.customRules) {
+    if (ruleKind(r) !== '매주') continue;
+    for (let d = from; d <= to; d = addDays(d, 1)) {
+      if (parseDate(d).getDay() !== num(r.weekday) || hs.has(d)) continue;
+      const key = `c-${r.id}@${d}`;
+      out.push({ date: d, title: r.title, cat: r.cat || '기타', note: r.note, key, kind: 'rule', done: !!state.done[key], time: r.time });
+    }
+  }
+  return out;
+}
+const dailyRules = () => state.customRules.filter((r) => ruleKind(r) === '매일').sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
 function ruleDate(rule, y, m, hs) {
   let day = rule.day === 'payday' ? num(state.settings.payday) || 25 : rule.day;
   const dd = day === 'last' || day >= lastDay(y, m) ? lastDay(y, m) : day;
@@ -342,7 +404,7 @@ function ruleEvents(from, to) {
       const date = ruleDate(r, y, m, hs);
       if (!date || date < from || date > to) continue;
       const key = `${r.id}@${y}-${pad(m)}`;
-      out.push({ date, title: r.title, cat: r.cat, note: r.note, key, kind: 'rule', done: !!state.done[key] });
+      out.push({ date, title: r.title, cat: r.cat, note: r.note, key, kind: 'rule', done: !!state.done[key], time: r.time });
     }
   }
   return out;
@@ -351,8 +413,9 @@ const empName = (id) => state.employees.find((e) => e.id === id)?.name || '(삭�
 
 function allEvents(from, to) {
   const inR = (s) => s && s >= from && s <= to;
-  const ev = ruleEvents(from, to);
+  const ev = [...ruleEvents(from, to), ...weeklyEvents(from, to)];
   for (const t of state.todos) if (inR(t.due)) ev.push({ date: t.due, title: t.title, cat: t.category || '할 일', kind: 'todo', id: t.id, done: t.status === '완료' });
+  for (const g of state.ideas) if (inR(g.due) && g.status !== '완료') ev.push({ date: g.due, title: `[검토] ${g.name}`, cat: g.category || '기타', kind: 'idea' });
   for (const g of state.grants) {
     if (g.status === '미선정') continue;
     for (const [k, l] of [['applyDue', '신청 마감'], ['interimDue', '중간보고'], ['finalDue', '최종보고'], ['settleDue', '정산 마감'], ['end', '협약 종료']]) {
@@ -441,10 +504,20 @@ function monthlyCost(c) {
 }
 const contractActive = (c) => !c.end || c.end >= today();
 
+/* ---------- 하위 작업 ---------- */
+const subProgress = (r) => { const s = r.subtasks || []; return s.length ? `${s.filter((x) => x.done).length}/${s.length}` : ''; };
+function subtaskHtml(ent, r) {
+  const s = r.subtasks || [];
+  if (!s.length) return '';
+  return `<ul class="subs">${s.map((x, i) => `<li class="${x.done ? 'done' : ''}"><label><input type="checkbox" data-act="sub-done" data-ent="${ent}" data-id="${r.id}" data-i="${i}" ${x.done ? 'checked' : ''}> ${esc(x.name)}</label></li>`).join('')}</ul>`;
+}
+const linesToSubs = (text) => String(text || '').split('\n').map((l) => l.trim()).filter(Boolean).map((l) => ({ id: uid(), done: /^\[x\]/i.test(l), name: l.replace(/^\[[ x]?\]\s*/i, '') }));
+const subsToLines = (subs) => (subs || []).map((x) => `${x.done ? '[x] ' : ''}${x.name}`).join('\n');
+
 /* ---------- 표시 헬퍼 ---------- */
 const TONE = {
-  완료: 'ok', 재직: 'ok', 선정: 'ok', 사용중: 'ok', '협약·수행중': 'info', 진행: 'info', 신청완료: 'info',
-  정산중: 'warn', 휴직: 'warn', 수리중: 'warn', 높음: 'danger', 신청준비: 'info',
+  완료: 'ok', 재직: 'ok', 선정: 'ok', 사용중: 'ok', '해결 완료': 'ok', '협약·수행중': 'info', 진행: 'info', '진행 중': 'info', 신청완료: 'info',
+  정산중: 'warn', 휴직: 'warn', 수리중: 'warn', '조치 중': 'warn', 보류: 'warn', '정리 중': 'info', 발생: 'danger', 높음: 'danger', 신청준비: 'info',
 };
 const badge = (label, tone) => `<span class="badge ${tone ?? TONE[label] ?? ''}">${esc(label)}</span>`;
 function opts(f) { return (typeof f.o === 'function' ? f.o() : f.o || []).map((o) => (Array.isArray(o) ? o : [o, o])); }
@@ -455,6 +528,7 @@ function cellHtml(f, v) {
     case 'date': return esc(fmtDate(v));
     case 'money': return esc(won(v));
     case 'check': return '✓';
+    case 'lines': return esc(Array.isArray(v) ? `${v.length}개` : v);
     case 'select': { const l = optLabel(f, v); return f.badge ? badge(l) : esc(l); }
     case 'url': return `<a href="${esc(safeUrl(v))}" target="_blank" rel="noopener">열기</a>`;
     default: return esc(v);
@@ -483,7 +557,7 @@ function evRow(e) {
       ? `<input type="checkbox" data-act="todo-done" data-id="${e.id}" ${e.done ? 'checked' : ''} aria-label="완료 표시">`
       : '<span class="dot"></span>';
   return `<li class="ev ${e.done ? 'done' : ''}">${ctl}<span class="ev-date">${shortDate(e.date)}</span><span class="chip ${catClass(e.cat)}">${esc(e.cat)}</span>
-    <span class="ev-title">${esc(e.title)}${e.note ? `<small>${esc(e.note)}</small>` : ''}</span>
+    <span class="ev-title">${e.time ? `<b class="muted">${esc(e.time)}</b> ` : ''}${esc(e.title)}${e.note ? `<small>${esc(e.note)}</small>` : ''}</span>
     <span class="dday ${e.done ? '' : ddayTone(e.date)}">${e.done ? '완료' : dday(e.date)}</span></li>`;
 }
 
@@ -498,12 +572,15 @@ VIEWS.dashboard = () => {
   const ym = t.slice(0, 7);
   const monthExp = state.expenses.filter((x) => x.date?.startsWith(ym)).reduce((a, x) => a + num(x.amount), 0);
   const running = state.grants.filter((g) => ['선정', '협약·수행중', '정산중'].includes(g.status));
-  const openTodos = state.todos.filter((x) => x.status !== '완료');
+  const openTodos = state.todos.filter((x) => x.status !== '완료' && x.status !== '보류' && x.kind !== '상시');
   const lateTodos = openTodos.filter((x) => x.due && x.due < t);
 
   const evs = allEvents(addDays(t, -30), addDays(t, ahead));
   const overdue = evs.filter((e) => e.date < t && !e.done && (e.kind === 'todo' || (e.kind === 'rule' && e.date >= (s.since || t))));
   const upcoming = evs.filter((e) => e.date >= t && (e.kind !== 'leave' || e.first));
+  const daily = dailyRules();
+  const dailyDone = daily.filter((r) => state.done[`c-${r.id}@${t}`]).length;
+  const inProgress = state.todos.filter((x) => x.status === '진행' && x.kind !== '상시');
 
   const alerts = [];
   const flagged = state.expenses.filter((x) => expenseFlag(x));
@@ -543,6 +620,13 @@ VIEWS.dashboard = () => {
       <div class="card kpi"><div class="label">진행 중 지원사업</div><div class="value">${running.length}건</div><div class="sub">신청 준비 ${state.grants.filter((g) => ['공고검토', '신청준비'].includes(g.status)).length}건</div></div>
       <div class="card kpi"><div class="label">미완료 할 일</div><div class="value">${openTodos.length}건</div><div class="sub ${lateTodos.length ? 'danger' : ''}">기한 지남 ${lateTodos.length}건</div></div>
     </div>
+    ${daily.length || inProgress.length ? `<div class="grid grid-2" style="margin-bottom:16px">
+      <section class="card"><div class="card-head"><h2>오늘 루틴 <span class="count">${dailyDone}/${daily.length}</span></h2><a href="#settings">편집</a></div>
+        ${daily.length ? `<ul class="ev-list">${daily.map((r) => { const key = `c-${r.id}@${t}`; const done = !!state.done[key]; return `<li class="ev ${done ? 'done' : ''}"><input type="checkbox" data-act="rule-done" data-key="${esc(key)}" ${done ? 'checked' : ''} aria-label="완료"><span class="ev-date">${esc(r.time || '')}</span><span class="chip ${catClass(r.cat)}">${esc(r.cat)}</span><span class="ev-title">${esc(r.title)}${r.note ? `<small>${esc(r.note)}</small>` : ''}</span><span></span></li>`; }).join('')}</ul>` : '<div class="empty">매일 루틴이 없습니다.</div>'}
+      </section>
+      <section class="card"><div class="card-head"><h2>진행 중인 업무 <span class="count">${inProgress.length}</span></h2><a href="#todos">전체 보기</a></div>
+        ${inProgress.length ? `<ul class="ev-list">${inProgress.map((x) => `<li class="ev"><input type="checkbox" data-act="todo-done" data-id="${x.id}" aria-label="완료"><span class="ev-date">${x.due ? shortDate(x.due) : ''}</span><span class="chip ${catClass(x.category)}">${esc(x.category)}</span><span class="ev-title"><a href="#todos" class="plain" data-act="edit" data-ent="todos" data-id="${x.id}">${esc(x.title)}</a>${subProgress(x) ? `<small>하위 작업 ${subProgress(x)}</small>` : ''}</span><span class="dday ${x.due ? ddayTone(x.due) : ''}">${x.due ? dday(x.due) : ''}</span></li>`).join('')}</ul>` : '<div class="empty">진행 중으로 표시한 업무가 없습니다.</div>'}
+      </section></div>` : ''}
     <div class="grid grid-2">
       <section class="card">
         <div class="card-head"><h2>다가오는 일정 <span class="count">${upcoming.length}</span></h2><a href="#calendar">달력 보기</a></div>
@@ -584,34 +668,66 @@ VIEWS.calendar = () => {
 };
 
 VIEWS.todos = () => {
-  let rows = state.todos.filter((r) => matchQ(r, ui.todoQ));
-  if (ui.todoStatus === 'open') rows = rows.filter((r) => r.status !== '완료');
-  if (ui.todoStatus === 'done') rows = rows.filter((r) => r.status === '완료');
-  const pr = { 높음: 0, 보통: 1, 낮음: 2 };
-  rows.sort((a, b) => (a.status === '완료') - (b.status === '완료') || (a.due || '9999').localeCompare(b.due || '9999') || pr[a.priority] - pr[b.priority]);
+  const tabs = [['todos', '할 일'], ['always', '상시 업무'], ['ideas', '검토 과제'], ['issues', '이슈 기록']];
   const t = today();
-  return `
-    ${head('할 일', '분류·마감일·우선순위로 업무를 관리합니다. 체크하면 완료 처리됩니다.', addBtn('todos', '할 일'))}
-    <section class="card">
+  let body = '';
+  if (ui.todoTab === 'todos' || ui.todoTab === 'always') {
+    const always = ui.todoTab === 'always';
+    let rows = state.todos.filter((r) => (r.kind === '상시') === always && matchQ(r, ui.todoQ, subsToLines(r.subtasks)));
+    if (!always) {
+      if (ui.todoStatus === 'open') rows = rows.filter((r) => r.status !== '완료' && r.status !== '보류');
+      if (ui.todoStatus === 'hold') rows = rows.filter((r) => r.status === '보류');
+      if (ui.todoStatus === 'done') rows = rows.filter((r) => r.status === '완료');
+    }
+    const pr = { 높음: 0, 보통: 1, 낮음: 2 };
+    rows.sort((a, b) => (a.status === '완료') - (b.status === '완료') || (b.status === '진행') - (a.status === '진행') || (a.due || '9999').localeCompare(b.due || '9999') || pr[a.priority] - pr[b.priority] || (a.category || '').localeCompare(b.category || ''));
+    body = `<section class="card">
       <div class="card-head">
         <div class="toolbar">
-          <select data-filter="todoStatus" aria-label="상태">
-            ${[['open', '미완료'], ['done', '완료'], ['all', '전체']].map(([v, l]) => `<option value="${v}" ${ui.todoStatus === v ? 'selected' : ''}>${l}</option>`).join('')}
-          </select>
+          ${always ? '' : `<select data-filter="todoStatus" aria-label="상태">
+            ${[['open', '미완료'], ['hold', '보류'], ['done', '완료'], ['all', '전체']].map(([v, l]) => `<option value="${v}" ${ui.todoStatus === v ? 'selected' : ''}>${l}</option>`).join('')}
+          </select>`}
           <input id="todoQ" class="search" type="search" placeholder="검색" value="${esc(ui.todoQ)}" data-filter="todoQ">
         </div>
         <button class="btn sm" data-act="csv" data-ent="todos">CSV 내보내기</button>
       </div>
+      ${always ? '<p class="muted">필요할 때 꺼내 보는 매뉴얼성 업무입니다. 처리 방법·참고 자료를 적어 두면 인수인계 자료가 됩니다.</p>' : ''}
       ${table('todos', rows, {
-        rowClass: (r) => (r.status === '완료' ? 'is-done' : r.due && r.due < t ? 'is-warn' : ''),
+        cols: always ? ['category', 'title', 'ref'] : SCHEMA.todos.cols,
+        rowClass: (r) => (r.status === '완료' ? 'is-done' : r.due && r.due < t && r.status !== '보류' ? 'is-warn' : ''),
         extra: {
           done: { l: '', f: (r) => `<input type="checkbox" data-act="todo-done" data-id="${r.id}" ${r.status === '완료' ? 'checked' : ''} aria-label="완료">` },
-          title: { l: '제목', f: (r) => `<span class="title-cell">${esc(r.title)}</span>${r.memo ? `<br><small>${esc(r.memo)}</small>` : ''}` },
+          title: { l: always ? '업무' : '제목', f: (r) => `<span class="title-cell">${esc(r.title)}</span>${r.desc ? `<br><small class="pre">${esc(r.desc)}</small>` : ''}${subtaskHtml('todos', r)}${r.memo ? `<br><small>${esc(r.memo)}</small>` : ''}` },
           due: { l: '마감일', f: (r) => (r.due ? `${esc(fmtDate(r.due))} ${r.status !== '완료' ? `<span class="dday ${ddayTone(r.due)}">${dday(r.due)}</span>` : ''}` : '<span class="muted">-</span>') },
         },
-        empty: ui.todoStatus === 'open' ? '미완료 할 일이 없습니다.' : '할 일이 없습니다.',
+        empty: always ? '상시 업무가 없습니다. 할 일 추가 시 종류를 "상시"로 선택하세요.' : ui.todoStatus === 'open' ? '미완료 할 일이 없습니다.' : '할 일이 없습니다.',
       })}
     </section>`;
+  } else if (ui.todoTab === 'ideas') {
+    const order = ['진행 중', '정리 중', '고민 중', '보류', '완료'];
+    const rows = [...state.ideas].sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status) || (a.due || '9999').localeCompare(b.due || '9999'));
+    body = `<section class="card"><div class="card-head"><h2>검토 과제</h2><button class="btn sm" data-act="csv" data-ent="ideas">CSV 내보내기</button></div>
+      <p class="muted">아직 할 일로 쪼개기 전 단계의 고민거리·의사결정 과제입니다. 결정 기한을 넣으면 달력에 표시됩니다.</p>
+      ${table('ideas', rows, {
+        rowClass: (r) => (r.status === '완료' ? 'is-done' : ''),
+        extra: { name: { l: '과제명', f: (r) => `<span class="title-cell">${esc(r.name)}</span>${r.concern ? `<br><small class="pre">${esc(r.concern)}</small>` : ''}${subtaskHtml('ideas', r)}${r.note ? `<br><small>${esc(r.note)}</small>` : ''}` } },
+        empty: '등록된 검토 과제가 없습니다.',
+      })}</section>`;
+  } else {
+    const rows = [...state.issues].sort((a, b) => (a.status === '해결 완료') - (b.status === '해결 완료') || (b.date || '').localeCompare(a.date || ''));
+    body = `<section class="card"><div class="card-head"><h2>이슈 기록</h2><button class="btn sm" data-act="csv" data-ent="issues">CSV 내보내기</button></div>
+      <p class="muted">문제가 생긴 건을 원인·재발 방지책과 함께 남깁니다. 같은 실수를 반복하지 않기 위한 기록입니다.</p>
+      ${table('issues', rows, {
+        rowClass: (r) => (r.status === '해결 완료' ? 'is-done' : ''),
+        extra: { name: { l: '이슈', f: (r) => `<span class="title-cell">${esc(r.name)}</span>${r.content ? `<br><small class="pre">${esc(r.content)}</small>` : ''}` } },
+        empty: '기록된 이슈가 없습니다.',
+      })}</section>`;
+  }
+  const addMap = { todos: addBtn('todos', '할 일'), always: addBtn('todos', '상시 업무', { kind: '상시' }), ideas: addBtn('ideas', '검토 과제'), issues: addBtn('issues', '이슈') };
+  return `
+    ${head('업무', '할 일과 하위 작업, 상시 업무 매뉴얼, 검토 과제, 이슈 기록', addMap[ui.todoTab])}
+    <div class="tabs" role="tablist">${tabs.map(([k, l]) => `<button role="tab" class="${ui.todoTab === k ? 'active' : ''}" data-act="tab" data-g="todoTab" data-t="${k}">${l}</button>`).join('')}</div>
+    ${body}`;
 };
 
 VIEWS.hr = () => {
@@ -795,7 +911,7 @@ VIEWS.admin = () => {
 
 VIEWS.settings = () => {
   const s = state.settings;
-  const counts = ['todos', 'employees', 'leaves', 'expenses', 'grants', 'contracts', 'assets'].map((k) => `${SCHEMA[k].name} ${state[k].length}`).join(' · ');
+  const counts = ['todos', 'ideas', 'issues', 'customRules', 'employees', 'leaves', 'expenses', 'grants', 'contracts', 'assets'].map((k) => `${SCHEMA[k].name} ${state[k].length}`).join(' · ');
   return `
     ${head('설정·백업', '회사 정보, 공휴일, 반복 일정, 데이터 백업')}
     <div class="grid grid-2">
@@ -812,13 +928,14 @@ VIEWS.settings = () => {
         <p class="muted">모든 데이터는 <b>이 브라우저(localStorage)</b>에만 저장됩니다. 브라우저 데이터 삭제·PC 교체 시 사라지므로 정기적으로 백업 파일을 회사 드라이브에 보관하세요.</p>
         <p><small>현재 데이터: ${counts}<br>마지막 백업: ${s.lastBackup ? fmtDate(s.lastBackup) : '없음'}</small></p>
         <div class="toolbar"><button class="btn primary" data-act="export">백업 파일 내보내기 (JSON)</button><button class="btn" data-act="import">백업 불러오기</button></div>
+        <p class="muted" style="margin-top:10px">기존에 쓰던 업무 관리 툴의 백업(routine·issues·ideas 형식 JSON)도 같은 버튼으로 불러오면 자동 변환되어 현재 데이터에 <b>추가</b>됩니다.</p>
         <br><div class="toolbar"><button class="btn danger" data-act="reset">전체 초기화</button></div>
         <div class="note">개인정보보호법상 직원 정보는 업무에 필요한 최소한만 입력하고, 백업 파일은 접근 권한이 제한된 곳에 보관하세요.</div>
       </section>
     </div>
     <section class="card"><div class="card-head"><h2>사용자 반복 일정</h2>${addBtn('customRules', '반복 일정')}</div>
       <p class="muted">기본 제공 법정 일정 외에 회사 고유의 정기 업무(예: 매월 5일 법인카드 정산, 분기 이사회)를 추가합니다.</p>
-      ${table('customRules', state.customRules, { empty: '추가한 반복 일정이 없습니다.' })}</section>
+      ${table('customRules', [...state.customRules].sort((a, b) => ['매일', '매주', '매월', '분기', '매년'].indexOf(ruleKind(a)) - ['매일', '매주', '매월', '분기', '매년'].indexOf(ruleKind(b)) || (a.time || '99').localeCompare(b.time || '99')), { extra: { kind: { l: '주기', f: (r) => esc(ruleKind(r)) }, when: { l: '시기', f: (r) => esc(ruleWhen(r)) }, note: { l: '처리 방법·설명', f: (r) => (r.note || r.ref ? `<small class="pre">${esc(r.note || '')}${r.ref ? `<br>📎 ${esc(r.ref)}` : ''}</small>` : '<span class="muted">-</span>') } }, empty: '추가한 반복 일정이 없습니다.' })}</section>
     <section class="card"><div class="card-head"><h2>기본 제공 법정·정기 일정</h2></div>
       <div class="table-wrap"><table><thead><tr><th>분류</th><th>일정</th><th>시기</th></tr></thead><tbody>
       ${RULES.map((r) => `<tr><td><span class="chip ${catClass(r.cat)}">${r.cat}</span></td><td>${esc(r.title)}${r.note ? `<br><small>${esc(r.note)}</small>` : ''}</td><td>${r.months === 'all' ? '매월' : `${r.months.join('·')}월`} ${r.day === 'last' ? '말일' : r.day === 'payday' ? '급여일' : `${r.day}일`}</td></tr>`).join('')}
@@ -835,6 +952,7 @@ function fieldInput(f, v) {
   const req = f.req ? 'required' : '';
   switch (f.t) {
     case 'textarea': return `<textarea id="${id}" name="${f.k}" rows="3">${esc(val)}</textarea>`;
+    case 'lines': return `<textarea id="${id}" name="${f.k}" rows="4">${esc(Array.isArray(val) ? subsToLines(val) : val)}</textarea>`;
     case 'select': return `<select id="${id}" name="${f.k}" ${req}><option value="">${f.req ? '선택' : '-'}</option>${opts(f).map(([k, l]) => `<option value="${esc(k)}" ${String(k) === String(val) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
     case 'check': return `<label class="check"><input type="checkbox" id="${id}" name="${f.k}" ${val ? 'checked' : ''}> ${esc(f.cl || '예')}</label>`;
     case 'money': return `<input id="${id}" name="${f.k}" type="text" inputmode="numeric" data-money value="${val === '' ? '' : num(val).toLocaleString('ko-KR')}" ${req} placeholder="0">`;
@@ -867,6 +985,7 @@ function openForm(ent, id, preset = {}) {
       if (!el) continue;
       let v = f.t === 'check' ? el.checked : el.value.trim();
       if ((f.t === 'money' || f.t === 'number') && v !== '') v = num(v);
+      if (f.t === 'lines') { const prev = rec[f.k] || []; v = linesToSubs(v).map((x) => ({ ...x, id: prev.find((p) => p.name === x.name)?.id || x.id })); }
       if (f.req && (v === '' || v == null)) { toast(`${f.l}을(를) 입력하세요.`); el.focus(); return; }
       data[f.k] = v;
     }
@@ -944,6 +1063,7 @@ function exportCsv(ent) {
     lines.push(S.fields.map((f) => {
       const v = r[f.k];
       if (f.t === 'check') return q(v ? 'Y' : '');
+      if (f.t === 'lines') return q(subsToLines(v));
       if (f.t === 'select' && v) return q(optLabel(f, v));
       return q(v);
     }).join(','));
@@ -961,12 +1081,76 @@ function importJson(file) {
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
+      if (data && Array.isArray(data.routine) && !data.settings) {
+        const r = importLegacy(data);
+        if (!confirm(`기존 업무 툴 백업으로 인식했습니다.\n반복 일정 ${r.customRules.length}건, 할 일 ${r.todos.length}건, 검토 과제 ${r.ideas.length}건, 이슈 ${r.issues.length}건을 현재 데이터에 추가합니다. 계속할까요?`)) return;
+        for (const k of ['customRules', 'todos', 'ideas', 'issues']) state[k].push(...r[k]);
+        Object.assign(state.done, r.done);
+        save(); render(); toast('기존 툴 데이터를 불러왔습니다.');
+        return;
+      }
       if (!data || typeof data !== 'object' || !data.settings) throw new Error('형식 오류');
       if (!confirm('현재 데이터를 백업 파일 내용으로 바꿉니다. 계속할까요?')) return;
       state = normalize(data); save(); applyTheme(); render(); toast('백업을 불러왔습니다.');
     } catch (e) { toast('불러오기 실패: 이 도구에서 내보낸 JSON 파일인지 확인하세요.'); }
   };
   reader.readAsText(file);
+}
+
+/* ---------- 기존 업무 툴(routine/issues/ideas/days 형식) 변환 ---------- */
+function importLegacy(d) {
+  const CAT = { 정부지원사업: '정부지원', 자사서비스: '자사서비스' };
+  const cat = (c) => (OPT.cat.includes(CAT[c] || c) ? CAT[c] || c : '기타');
+  const ST = { '진행 전': '대기', '진행 중': '진행', 완료: '완료', '보류·중단': '보류', '진행 예정': '대기', 전달완료: '완료', '피드백 보완': '진행' };
+  const subs = (list) => (list || []).map((x) => ({ id: x.id || uid(), name: x.name || x.text || '', done: ['완료', '전달완료'].includes(x.status) })).filter((x) => x.name);
+  const KIND = { 일정기: '매일', 주정기: '매주', 월정기: '매월', 분기정기: '분기', 연정기: '매년' };
+  const out = { customRules: [], todos: [], ideas: [], issues: [], done: {} };
+  const seen = new Set(state.todos.map((t) => t.title));
+  const ruleIdByLegacy = {};
+  const desc = (r) => [r.desc, r.timing && !/필요시|매일|매월|매주|상시/.test(r.timing) ? `시기: ${r.timing}` : ''].filter(Boolean).join('\n');
+
+  for (const r of d.routine || []) {
+    const kind = KIND[r.freq]; const sc = r.sched || {};
+    if (kind) {
+      let months = '';
+      if (kind === '분기') { const m = r.lastDone ? +r.lastDone.slice(5, 7) : 1; months = [0, 1, 2, 3].map((i) => ((m - 1 + 3 * i) % 12) + 1).sort((a, b) => a - b).join(','); }
+      if (kind === '매년') months = (sc.months || [1]).join(',');
+      const rule = { id: uid(), title: r.name, cat: cat(r.category), kind, weekday: kind === '매주' ? (sc.weekday ?? 1) : '', day: String(sc.monthDay || 1), months, time: sc.time || '', note: desc(r), ref: r.ref || '', created: today() };
+      out.customRules.push(rule); ruleIdByLegacy[r.id] = rule.id;
+      // 현재 진행 중인 회차에 하위 작업이 있으면 할 일로도 등록
+      if (r.subtasks?.length && r.status !== '완료' && !seen.has(r.name)) {
+        out.todos.push({ id: uid(), title: r.name, category: cat(r.category), due: r.due || '', priority: r.priority || '보통', status: ST[r.status] || '대기', kind: '업무', desc: '', subtasks: subs(r.subtasks), ref: r.ref || '', memo: '반복 일정에서 생성', created: today() });
+        seen.add(r.name);
+      }
+      continue;
+    }
+    if (seen.has(r.name)) continue; seen.add(r.name);
+    const always = r.timing === '필요시' || r.timing === '상시';
+    out.todos.push({ id: uid(), legacyId: r.id, title: r.name, category: cat(r.category), due: r.due || '', priority: r.priority || '보통', status: always ? '대기' : ST[r.status] || '대기', kind: always ? '상시' : '업무', desc: desc(r), subtasks: subs(r.subtasks), ref: r.ref || '', memo: r.note || '', lastDone: r.lastDone || '', created: today() });
+  }
+  for (const l of d.later || []) {
+    if (l.srcId || seen.has(l.text)) continue; seen.add(l.text);
+    out.todos.push({ id: uid(), title: l.text, category: cat(l.cat), due: l.due || '', priority: l.priority || '보통', status: '보류', kind: '업무', subtasks: subs(l.subtasks), created: today() });
+  }
+  // 일별 기록: 매일·매주 루틴 완료 체크, 그날 추가된 임시 업무
+  for (const [day, rec] of Object.entries(d.days || {})) {
+    for (const [lid, it] of Object.entries(rec.items || {})) {
+      const rid = ruleIdByLegacy[lid];
+      if (rid && it.status === '완료') out.done[`c-${rid}@${day}`] = day;
+    }
+    for (const a of rec.adhoc || []) {
+      const name = a.text || a.name; if (!name || seen.has(name)) continue; seen.add(name);
+      out.todos.push({ id: uid(), title: name, category: cat(a.cat || a.category), due: a.due || '', priority: a.priority || '보통', status: ST[a.status] || '대기', kind: '업무', subtasks: subs(a.subtasks), desc: a.desc || '', memo: `${day} 등록`, created: day });
+    }
+  }
+  for (const i of d.issues || []) {
+    out.issues.push({ id: uid(), name: i.name, date: i.date || '', category: cat(i.category), status: ['해결 완료', '조치 중'].includes(i.status) ? i.status : '발생', owner: i.owner || '', content: i.content || '', cause: i.cause || '', prevention: i.prevention || '', created: today() });
+  }
+  const IST = { '고민 중': '고민 중', '정리 중': '정리 중', '진행 중': '진행 중', 완료: '완료', '보류·중단': '보류' };
+  for (const g of d.ideas || []) {
+    out.ideas.push({ id: uid(), name: g.name, category: cat(g.category || g.area), status: IST[g.status] || '고민 중', priority: g.priority || '보통', due: g.due || '', concern: [g.concern, g.desc, g.progress ? `진행: ${g.progress}` : ''].filter(Boolean).join('\n'), subtasks: subs(g.subtasks), note: g.note || '', created: today() });
+  }
+  return out;
 }
 
 /* ---------- 샘플 데이터 ---------- */
@@ -1016,6 +1200,7 @@ function render() {
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]');
   if (!b || b.matches('input[type=checkbox]')) return;
+  if (b.tagName === 'A' && b.dataset.act === 'edit') e.preventDefault();
   const { act, ent, id } = b.dataset;
   switch (act) {
     case 'add': openForm(ent, null, b.dataset.preset ? JSON.parse(b.dataset.preset) : {}); break;
@@ -1050,9 +1235,14 @@ document.addEventListener('change', (e) => {
     if (el.checked) state.done[el.dataset.key] = today(); else delete state.done[el.dataset.key];
     save(); render(); return;
   }
+  if (el.dataset.act === 'sub-done') {
+    const r = state[el.dataset.ent].find((x) => x.id === el.dataset.id);
+    if (r?.subtasks?.[el.dataset.i]) { r.subtasks[el.dataset.i].done = el.checked; save(); render(); }
+    return;
+  }
   if (el.dataset.act === 'todo-done') {
     const t = state.todos.find((x) => x.id === el.dataset.id);
-    if (t) { t.status = el.checked ? '완료' : '대기'; t.doneAt = el.checked ? today() : ''; save(); render(); }
+    if (t) { t.status = el.checked ? '완료' : '대기'; t.doneAt = el.checked ? today() : ''; if (el.checked) t.lastDone = today(); save(); render(); }
     return;
   }
   if (el.dataset.filter && el.type !== 'search') {
