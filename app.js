@@ -105,7 +105,7 @@ const RULES = [
   { id: 'salary-next', cat: '인사', months: [12], day: 15, title: '차년도 최저임금 반영 · 연봉/근로계약 갱신 검토' },
 ];
 
-const CAT_CLASS = { 세무: 'c1', '4대보험': 'c2', 인사: 'c3', 휴가: 'c3', 총무: 'c4', 회계: 'c5', 정부지원: 'c6', '할 일': 'c7', 기타: 'c8' };
+const CAT_CLASS = { 세무: 'c1', '4대보험': 'c2', 인사: 'c3', 휴가: 'c3', 총무: 'c4', 회계: 'c5', 정부지원: 'c6', '할 일': 'c7', 요청: 'c4', 기타: 'c8' };
 const catClass = (c) => CAT_CLASS[c] || 'c8';
 
 /* ---------- 선택지 ---------- */
@@ -114,12 +114,85 @@ const OPT = {
   account: ['복리후생비', '여비교통비', '기업업무추진비(접대비)', '통신비', '소모품비', '지급수수료', '임차료', '도서인쇄비', '교육훈련비', '광고선전비', '차량유지비', '세금과공과', '보험료', '외주용역비', '연구개발비', '비품(자산)', '기타'],
   payMethod: ['법인카드', '계좌이체', '현금', '개인카드(정산)', '자동이체'],
   evidence: ['세금계산서', '계산서', '카드전표', '현금영수증', '간이영수증', '없음'],
+  reqKind: ['지출 요청', '이체확인증', '서류 발급', '기타'],
+  reqStatus: ['접수', '검토', '승인', '처리중', '완료', '보류', '반려'],
+  docType: ['재직증명서', '경력증명서', '급여명세서', '원천징수영수증', '사업자등록증', '법인등기부등본', '법인인감증명서', '사용인감계', '납세증명서', '4대보험 완납증명서', '4대보험 가입자명부', '통장사본', '이체확인증', '세금계산서', '견적서·청구서', '재무제표', '중소기업확인서', '기타'],
+  channel: ['메신저', '이메일', '구두', '전자결재', '전화', '기타'],
 };
 const QUALIFIED_EVIDENCE = ['세금계산서', '계산서', '카드전표', '현금영수증'];
+
+/* ---------- 요청·결재 워크플로우 ---------- */
+// 상태 흐름: 접수 → 검토 → 승인 → 처리중 → 완료 (보류·반려는 흐름 밖)
+const REQ_FLOW = ['접수', '검토', '승인', '처리중', '완료'];
+const REQ_TEMPLATES = {
+  '지출 요청': ['견적서·청구서 수령', '지출결의(품의) 승인', '세금계산서·카드전표 등 적격증빙 수취', '이체·결제 실행', '이체확인증 보관', '회계·지출에 기록'],
+  '이체확인증': ['이체 내역 확인 (일자·금액·수취인)', '인터넷뱅킹에서 이체확인증 발급 (PDF)', '요청처에 발송·시스템 업로드'],
+  '서류 발급': ['발급처·발급 방식 확인', '서류 발급 (직인·대표 명의 확인)', '요청자에게 전달', '개인정보 포함 시 전달 기록 남기기'],
+  '기타': ['요청 내용 확인', '처리', '요청자에게 회신'],
+};
+// 자주 요청받는 서류의 발급처 (업무 참고용)
+const DOC_GUIDE = [
+  ['재직증명서 · 경력증명서', '회사 자체 발급 (직인)', '경력증명서는 퇴직 후 3년 이내 요청 시 발급 의무(근로기준법 제39조). 요청자가 원하는 항목만 기재'],
+  ['급여명세서 · 원천징수영수증', '급여 프로그램 / 홈택스', '근로소득 원천징수영수증은 연말정산 후 발급. 개인정보이므로 본인 확인 후 전달'],
+  ['사업자등록증(명)', '홈택스 → 민원증명', '사업자등록증명은 즉시 발급. 사업자등록증 재발급도 온라인 가능'],
+  ['법인등기사항전부증명서(등기부등본)', '인터넷등기소', '지원사업 협약·계약·계좌 개설 시 자주 요구. 발급용과 열람용 수수료가 다름'],
+  ['법인인감증명서', '등기소 창구·무인발급기 (법인인감카드 필요)', '인터넷 발급 불가. 사용인감계와 함께 요구되는 경우가 많음'],
+  ['납세증명서 (국세·지방세)', '홈택스 / 위택스·정부24', '유효기간(보통 30일) 확인. 지원사업 협약·정산, 입찰 시 필요'],
+  ['4대보험 완납증명서 · 가입자명부', '4대사회보험 정보연계센터', '지원사업 인건비 정산, 고용 지원금 신청 시 필요'],
+  ['통장사본', '인터넷뱅킹 → 통장 표지 출력', '사업비 전용계좌와 일반계좌를 구분해서 전달'],
+  ['이체확인증', '기업 인터넷뱅킹 → 이체결과조회', '정산 증빙은 거래 건별로 PDF 보관. 법인카드 결제 건은 카드전표로 대체'],
+  ['세금계산서 발급 (매출)', '홈택스 전자세금계산서', '공급일이 속한 달의 다음 달 10일까지 발급. 지연·미발급 시 가산세'],
+  ['재무제표 · 표준재무제표증명', '세무대리인 / 홈택스 민원증명', '법인세 신고 후 발급 가능. 신고 전에는 가결산 자료로 대체'],
+  ['중소기업확인서', '중소기업현황정보시스템', '유효기간 1년. 지원사업 신청 전 미리 갱신'],
+];
+const reqItems = (r) => String(r.items || '').split('\n').map((x) => x.trim()).filter(Boolean);
+function reqProgress(r) { const items = reqItems(r); return { total: items.length, done: items.filter((x) => r.itemDone?.[x]).length }; }
+const reqOpen = (r) => !['완료', '반려'].includes(r.status);
+const reqPreset = (kind) => ({ kind, items: (REQ_TEMPLATES[kind] || []).join('\n') });
 
 /* ---------- 엔터티 스키마 ---------- */
 // t: text | date | money | number | select | textarea | check | url
 const SCHEMA = {
+  requests: {
+    name: '요청',
+    fields: [
+      { k: 'kind', l: '요청 종류', t: 'select', o: OPT.reqKind, d: '지출 요청', req: 1 },
+      { k: 'status', l: '상태', t: 'select', o: OPT.reqStatus, d: '접수', badge: 1 },
+      { k: 'title', l: '요청 내용', t: 'text', req: 1, wide: 1, h: '예: 10월 클라우드 이용료 지급 / 창업진흥원 제출용 이체확인증 / 홍길동 재직증명서' },
+      { k: 'requester', l: '요청자·요청처', t: 'text', h: '직원 이름, 부서, 기관·거래처명' },
+      { k: 'employeeId', l: '관련 직원', t: 'select', o: () => state.employees.map((e) => [e.id, e.name]), h: '재직증명서 등 직원 대상 서류일 때 선택' },
+      { k: 'docType', l: '서류 종류', t: 'select', o: OPT.docType, h: '서류 발급·이체확인증 요청일 때' },
+      { k: 'amount', l: '금액', t: 'money' },
+      { k: 'account', l: '계정과목', t: 'select', o: OPT.account },
+      { k: 'vendor', l: '거래처·수취인', t: 'text' },
+      { k: 'method', l: '지급 방법', t: 'select', o: OPT.payMethod },
+      { k: 'grantId', l: '지원사업 재원', t: 'select', o: () => state.grants.map((g) => [g.id, g.name]), h: '사업비로 지급하는 경우 선택' },
+      { k: 'received', l: '접수일', t: 'date', req: 1, d: () => today() },
+      { k: 'due', l: '처리 기한', t: 'date' },
+      { k: 'channel', l: '접수 경로', t: 'select', o: OPT.channel, d: '메신저' },
+      { k: 'approver', l: '승인자', t: 'text', h: '예: 대표이사' },
+      { k: 'items', l: '처리 체크리스트 (한 줄에 하나)', t: 'textarea', wide: 1, h: '요청 종류를 고르면 기본 항목이 채워집니다. 필요에 맞게 고치세요.' },
+      { k: 'memo', l: '메모 · 반려 사유', t: 'textarea', wide: 1 },
+    ],
+    cols: ['received', 'kind', 'title', 'amount', 'due', 'status', 'next'],
+    validate: (d) => (d.due && d.received && d.due < d.received ? '처리 기한이 접수일보다 빠릅니다.' : ''),
+    beforeSave: (d, prev) => {
+      if (!prev) d.log = [{ date: today(), status: d.status }];
+      else if (prev.status !== d.status) d.log = [...(prev.log || []), { date: today(), status: d.status }];
+      if (d.status === '완료' && !prev?.doneAt) d.doneAt = today();
+      if (d.status !== '완료') d.doneAt = '';
+    },
+    formInit: (form) => {
+      const kind = form.elements.namedItem('kind'); const items = form.elements.namedItem('items');
+      const tpls = Object.values(REQ_TEMPLATES).map((a) => a.join('\n'));
+      kind.addEventListener('change', () => { if (!items.value.trim() || tpls.includes(items.value.trim())) items.value = reqPreset(kind.value).items; });
+    },
+    detail: (r) => {
+      const i = REQ_FLOW.indexOf(r.status);
+      return `<div class="req-flow">${REQ_FLOW.map((st, j) => `<span class="step ${j < i ? 'past' : ''} ${j === i ? 'now' : ''}">${st}</span>`).join('')}${i < 0 ? `<span class="step now off">${esc(r.status)}</span>` : ''}</div>
+        ${r.log?.length ? `<small class="hint">이력: ${r.log.map((l) => `${esc(l.status)} ${l.date.slice(5).replace('-', '/')}`).join(' → ')}</small>` : ''}`;
+    },
+  },
   todos: {
     name: '할 일',
     fields: [
@@ -258,7 +331,7 @@ const SCHEMA = {
 const DEFAULTS = {
   version: 1,
   settings: { company: '제로스트에이아이', payday: 25, lookahead: 45, holidays: DEFAULT_HOLIDAYS, theme: 'auto', lastBackup: '', since: '' },
-  todos: [], employees: [], leaves: [], expenses: [], grants: [], assets: [], contracts: [], customRules: [],
+  todos: [], requests: [], employees: [], leaves: [], expenses: [], grants: [], assets: [], contracts: [], customRules: [],
   done: {},
 };
 
@@ -292,6 +365,7 @@ const ui = {
   calMonth: today().slice(0, 7),
   hrTab: 'employees', adminTab: 'contracts',
   todoStatus: 'open', todoQ: '',
+  reqStatus: 'open', reqKind: '', reqQ: '', reqExpanded: new Set(),
   expMonth: today().slice(0, 7), expGrant: '', expQ: '',
   leaveEmp: '', empQ: '', showRetired: false,
 };
@@ -353,6 +427,7 @@ function allEvents(from, to) {
   const inR = (s) => s && s >= from && s <= to;
   const ev = ruleEvents(from, to);
   for (const t of state.todos) if (inR(t.due)) ev.push({ date: t.due, title: t.title, cat: t.category || '할 일', kind: 'todo', id: t.id, done: t.status === '완료' });
+  for (const r of state.requests) if (reqOpen(r) && inR(r.due)) ev.push({ date: r.due, title: `[${r.kind}] ${r.title}${r.requester ? ` — ${r.requester}` : ''}`, cat: '요청', kind: 'request', id: r.id });
   for (const g of state.grants) {
     if (g.status === '미선정') continue;
     for (const [k, l] of [['applyDue', '신청 마감'], ['interimDue', '중간보고'], ['finalDue', '최종보고'], ['settleDue', '정산 마감'], ['end', '협약 종료']]) {
@@ -445,6 +520,7 @@ const contractActive = (c) => !c.end || c.end >= today();
 const TONE = {
   완료: 'ok', 재직: 'ok', 선정: 'ok', 사용중: 'ok', '협약·수행중': 'info', 진행: 'info', 신청완료: 'info',
   정산중: 'warn', 휴직: 'warn', 수리중: 'warn', 높음: 'danger', 신청준비: 'info',
+  검토: 'info', 승인: 'info', 처리중: 'warn', 보류: 'warn', 반려: 'danger',
 };
 const badge = (label, tone) => `<span class="badge ${tone ?? TONE[label] ?? ''}">${esc(label)}</span>`;
 function opts(f) { return (typeof f.o === 'function' ? f.o() : f.o || []).map((o) => (Array.isArray(o) ? o : [o, o])); }
@@ -502,10 +578,17 @@ VIEWS.dashboard = () => {
   const lateTodos = openTodos.filter((x) => x.due && x.due < t);
 
   const evs = allEvents(addDays(t, -30), addDays(t, ahead));
-  const overdue = evs.filter((e) => e.date < t && !e.done && (e.kind === 'todo' || (e.kind === 'rule' && e.date >= (s.since || t))));
+  const overdue = evs.filter((e) => e.date < t && !e.done && (e.kind === 'todo' || e.kind === 'request' || (e.kind === 'rule' && e.date >= (s.since || t))));
   const upcoming = evs.filter((e) => e.date >= t && (e.kind !== 'leave' || e.first));
 
   const alerts = [];
+  const openReq = state.requests.filter(reqOpen);
+  const lateReq = openReq.filter((r) => r.due && r.due < t);
+  const soonReq = openReq.filter((r) => r.due && r.due >= t && diffDays(t, r.due) <= 3);
+  const staleReq = openReq.filter((r) => r.status === '접수' && r.received && diffDays(r.received, t) >= 3);
+  if (lateReq.length) alerts.push(['danger', `처리 기한이 지난 요청 <b>${lateReq.length}건</b> — ${esc(lateReq.map((r) => r.title).slice(0, 2).join(', '))}${lateReq.length > 2 ? ' 외' : ''}`, '#requests', '요청 보기']);
+  if (soonReq.length) alerts.push(['warn', `3일 안에 처리할 요청 <b>${soonReq.length}건</b>`, '#requests', '요청 보기']);
+  if (staleReq.length) alerts.push(['warn', `접수 후 3일 이상 검토하지 않은 요청 <b>${staleReq.length}건</b>`, '#requests', '요청 보기']);
   const flagged = state.expenses.filter((x) => expenseFlag(x));
   if (flagged.length) alerts.push(['warn', `증빙·정산 확인이 필요한 지출 <b>${flagged.length}건</b>`, '#accounting', '회계 보기']);
   for (const c of state.contracts) {
@@ -525,7 +608,7 @@ VIEWS.dashboard = () => {
     if (!e.contract && e.status === '재직') alerts.push(['danger', `<b>${esc(e.name)}</b> 근로계약서 작성·교부 미확인`, '#hr', '인사 보기']);
     if (!e.insured && e.status === '재직' && e.empType !== '프리랜서') alerts.push(['warn', `<b>${esc(e.name)}</b> 4대보험 취득신고 미확인`, '#hr', '인사 보기']);
   }
-  const hasData = ['todos', 'employees', 'expenses', 'grants', 'contracts', 'assets'].some((k) => state[k].length);
+  const hasData = ['todos', 'requests', 'employees', 'expenses', 'grants', 'contracts', 'assets'].some((k) => state[k].length);
   if (hasData && (!s.lastBackup || diffDays(s.lastBackup, t) > 14)) {
     alerts.push(['warn', s.lastBackup ? `마지막 백업이 ${diffDays(s.lastBackup, t)}일 전입니다.` : '아직 백업한 적이 없습니다.', '#settings', '백업하기']);
   }
@@ -533,7 +616,7 @@ VIEWS.dashboard = () => {
   const d = parseDate(t);
   return `
     ${head(`${d.getMonth() + 1}월 ${d.getDate()}일 (${WD[d.getDay()]}) 업무 현황`, `${esc(s.company)} 경영지원 — 오늘부터 ${ahead}일간 일정과 확인할 사항`,
-      `${addBtn('todos', '할 일')}<button class="btn" data-act="add" data-ent="expenses">+ 지출</button>`)}
+      `${addBtn('todos', '할 일')}<button class="btn" data-act="add" data-ent="requests" data-preset='${esc(JSON.stringify(reqPreset('지출 요청')))}'>+ 요청</button><button class="btn" data-act="add" data-ent="expenses">+ 지출</button>`)}
     ${hasData ? '' : `<section class="card welcome"><h2>처음 오셨네요 👋</h2>
       <p>세무·4대보험·연말정산 등 법정 일정은 이미 자동으로 들어가 있습니다. 직원·계약·지원사업을 등록하면 연차, 계약 만료, 보고 기한도 함께 표시됩니다.</p>
       <div class="toolbar"><a class="btn primary" href="#hr">직원 등록하기</a><button class="btn" data-act="sample">샘플 데이터로 둘러보기</button></div></section><br>`}
@@ -541,7 +624,7 @@ VIEWS.dashboard = () => {
       <div class="card kpi"><div class="label">재직 인원</div><div class="value">${active.filter((e) => e.status === '재직').length}명</div><div class="sub">휴직 ${active.filter((e) => e.status === '휴직').length}명</div></div>
       <div class="card kpi"><div class="label">${+ym.slice(5)}월 지출</div><div class="value">${manwon(monthExp)}</div><div class="sub">${state.expenses.filter((x) => x.date?.startsWith(ym)).length}건</div></div>
       <div class="card kpi"><div class="label">진행 중 지원사업</div><div class="value">${running.length}건</div><div class="sub">신청 준비 ${state.grants.filter((g) => ['공고검토', '신청준비'].includes(g.status)).length}건</div></div>
-      <div class="card kpi"><div class="label">미완료 할 일</div><div class="value">${openTodos.length}건</div><div class="sub ${lateTodos.length ? 'danger' : ''}">기한 지남 ${lateTodos.length}건</div></div>
+      <div class="card kpi"><div class="label">미완료 할 일</div><div class="value">${openTodos.length}건</div><div class="sub ${lateTodos.length || lateReq.length ? 'danger' : ''}">기한 지남 ${lateTodos.length}건 · 처리 중 요청 ${openReq.length}건</div></div>
     </div>
     <div class="grid grid-2">
       <section class="card">
@@ -611,6 +694,60 @@ VIEWS.todos = () => {
         },
         empty: ui.todoStatus === 'open' ? '미완료 할 일이 없습니다.' : '할 일이 없습니다.',
       })}
+    </section>`;
+};
+
+VIEWS.requests = () => {
+  const t = today();
+  let rows = state.requests.filter((r) => matchQ(r, ui.reqQ, r.employeeId ? empName(r.employeeId) : ''));
+  if (ui.reqKind) rows = rows.filter((r) => r.kind === ui.reqKind);
+  if (ui.reqStatus === 'open') rows = rows.filter(reqOpen);
+  else if (ui.reqStatus === 'done') rows = rows.filter((r) => !reqOpen(r));
+  rows.sort((a, b) => reqOpen(b) - reqOpen(a) || (a.due || '9999').localeCompare(b.due || '9999') || (b.received || '').localeCompare(a.received || ''));
+  const open = state.requests.filter(reqOpen);
+  const urgent = open.filter((r) => r.due && diffDays(t, r.due) <= 3);
+  const waitPay = open.filter((r) => r.kind === '지출 요청').reduce((s, r) => s + num(r.amount), 0);
+  const doneMonth = state.requests.filter((r) => r.status === '완료' && r.doneAt?.startsWith(t.slice(0, 7))).length;
+  const nextOf = (r) => { const i = REQ_FLOW.indexOf(r.status); return i >= 0 && i < REQ_FLOW.length - 1 ? REQ_FLOW[i + 1] : r.status === '보류' ? '검토' : ''; };
+  const checklist = (r) => {
+    const items = reqItems(r); if (!items.length) return '';
+    const p = reqProgress(r);
+    return `<details class="checks" data-id="${r.id}" ${ui.reqExpanded.has(r.id) ? 'open' : ''}><summary>체크리스트 ${p.done}/${p.total}</summary><ul>
+      ${items.map((it) => `<li><label class="check"><input type="checkbox" data-act="req-item" data-id="${r.id}" data-item="${esc(it)}" ${r.itemDone?.[it] ? 'checked' : ''}> ${esc(it)}</label></li>`).join('')}</ul></details>`;
+  };
+  const expPreset = (r) => esc(JSON.stringify({ date: t, account: r.account || '지급수수료', vendor: r.vendor || r.requester || '', desc: r.title, amount: num(r.amount), method: r.method || '계좌이체', evidence: r.method === '법인카드' ? '카드전표' : '세금계산서', grantId: r.grantId || '' }));
+  return `
+    ${head('요청·결재', '지출 요청, 이체확인증, 재직증명서 등 서류 요청을 접수부터 완료까지 한 흐름으로 관리합니다.',
+      OPT.reqKind.map((k) => `<button class="btn ${k === '지출 요청' ? 'primary' : ''}" data-act="add" data-ent="requests" data-preset='${esc(JSON.stringify(reqPreset(k)))}'>+ ${k}</button>`).join(''))}
+    <div class="kpis">
+      <div class="card kpi"><div class="label">처리 중 요청</div><div class="value">${open.length}건</div><div class="sub">접수 ${open.filter((r) => r.status === '접수').length} · 승인 대기 ${open.filter((r) => r.status === '검토').length} · 처리중 ${open.filter((r) => r.status === '처리중').length}</div></div>
+      <div class="card kpi"><div class="label">3일 내 기한 · 지연</div><div class="value">${urgent.length}건</div><div class="sub ${urgent.some((r) => r.due < t) ? 'danger' : ''}">기한 지남 ${urgent.filter((r) => r.due < t).length}건</div></div>
+      <div class="card kpi"><div class="label">지급 예정 (미완료 지출 요청)</div><div class="value">${manwon(waitPay)}</div><div class="sub">${open.filter((r) => r.kind === '지출 요청').length}건</div></div>
+      <div class="card kpi"><div class="label">${+t.slice(5, 7)}월 완료</div><div class="value">${doneMonth}건</div></div>
+    </div>
+    <section class="card">
+      <div class="card-head"><div class="toolbar">
+        <select data-filter="reqStatus" aria-label="상태">${[['open', '처리 중'], ['done', '완료·반려'], ['all', '전체']].map(([v, l]) => `<option value="${v}" ${ui.reqStatus === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        <select data-filter="reqKind" aria-label="종류"><option value="">모든 종류</option>${OPT.reqKind.map((k) => `<option value="${k}" ${ui.reqKind === k ? 'selected' : ''}>${k}</option>`).join('')}</select>
+        <input id="reqQ" class="search" type="search" placeholder="내용·요청자·거래처 검색" value="${esc(ui.reqQ)}" data-filter="reqQ"></div>
+        <button class="btn sm" data-act="csv" data-ent="requests">CSV 내보내기</button></div>
+      ${table('requests', rows, {
+        rowClass: (r) => (!reqOpen(r) ? 'is-done' : r.due && r.due < t ? 'is-warn' : ''),
+        extra: {
+          title: { l: '요청 내용', f: (r) => `<span class="title-cell">${esc(r.title)}</span><br><small>${esc([r.requester, r.docType, r.vendor, r.employeeId ? `대상 ${empName(r.employeeId)}` : ''].filter(Boolean).join(' · '))}${r.grantId ? ` · <span class="chip c6">${esc(optLabel(SCHEMA.expenses.fields.find((f) => f.k === 'grantId'), r.grantId))}</span>` : ''}</small>${reqOpen(r) ? checklist(r) : ''}${r.status === '반려' && r.memo ? `<br><small class="danger-text">반려: ${esc(r.memo)}</small>` : ''}` },
+          due: { l: '처리 기한', f: (r) => (r.due ? `${esc(fmtDate(r.due))} ${reqOpen(r) ? `<span class="dday ${ddayTone(r.due)}">${dday(r.due)}</span>` : ''}` : '<span class="muted">-</span>') },
+          next: { l: '다음 단계', f: (r) => { const n = nextOf(r); return `${n ? `<button class="btn sm" data-act="req-next" data-id="${r.id}">→ ${n}</button>` : ''}${r.kind === '지출 요청' && r.status === '완료' ? ` <button class="btn sm ghost" data-act="add" data-ent="expenses" data-preset='${expPreset(r)}'>지출 등록</button>` : ''}`; } },
+        },
+        empty: ui.reqStatus === 'open' ? '처리 중인 요청이 없습니다. 위 버튼으로 접수하세요.' : '해당 조건의 요청이 없습니다.',
+      })}
+      <div class="note"><b>흐름:</b> 접수 → 검토(내용·증빙 확인) → 승인(대표·승인자 결재) → 처리중(이체·발급) → 완료. "→ 다음 단계" 버튼으로 넘기고, 보류·반려는 수정 화면에서 상태를 바꾸고 사유를 메모에 남기세요.
+        지출 요청은 완료 후 <b>지출 등록</b> 버튼으로 회계·지출 기록을 바로 만들 수 있습니다.</div>
+    </section>
+    <section class="card"><div class="card-head"><h2>자주 요청받는 서류 · 발급처</h2></div>
+      <div class="table-wrap"><table><thead><tr><th>서류</th><th>발급처</th><th>참고</th></tr></thead><tbody>
+      ${DOC_GUIDE.map(([d, w, n]) => `<tr><td><b>${esc(d)}</b></td><td>${esc(w)}</td><td class="wrap"><small>${esc(n)}</small></td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="note">발급 방법·수수료·유효기간은 바뀔 수 있으니 실제 발급 전 각 기관 공지를 확인하세요. 주민등록번호가 들어간 서류를 전달할 때는 전달 기록(일시·수신처)을 남기고, 불필요한 항목은 가리고 보내세요.</div>
     </section>`;
 };
 
@@ -795,7 +932,7 @@ VIEWS.admin = () => {
 
 VIEWS.settings = () => {
   const s = state.settings;
-  const counts = ['todos', 'employees', 'leaves', 'expenses', 'grants', 'contracts', 'assets'].map((k) => `${SCHEMA[k].name} ${state[k].length}`).join(' · ');
+  const counts = ['todos', 'requests', 'employees', 'leaves', 'expenses', 'grants', 'contracts', 'assets'].map((k) => `${SCHEMA[k].name} ${state[k].length}`).join(' · ');
   return `
     ${head('설정·백업', '회사 정보, 공휴일, 반복 일정, 데이터 백업')}
     <div class="grid grid-2">
@@ -855,7 +992,8 @@ function openForm(ent, id, preset = {}) {
     <header class="modal-head"><h2>${esc(S.name)} ${id ? '수정' : '추가'}</h2><button type="button" class="icon-btn" data-close aria-label="닫기">✕</button></header>
     <div class="form-grid">${S.fields.map((f) => `<div class="field ${f.wide ? 'wide' : ''}">
       ${f.t === 'check' ? `<span class="label" style="font-size:12px;font-weight:600;color:var(--muted)">${esc(f.l)}</span>` : `<label for="f-${f.k}">${esc(f.l)}${f.req ? ' <span class="req">*</span>' : ''}</label>`}
-      ${fieldInput(f, rec[f.k])}${f.h ? `<small class="hint">${esc(f.h)}</small>` : ''}</div>`).join('')}</div>
+      ${fieldInput(f, rec[f.k])}${f.h ? `<small class="hint">${esc(f.h)}</small>` : ''}</div>`).join('')}
+      ${id && S.detail ? `<div class="field wide">${S.detail(rec)}</div>` : ''}</div>
     <footer class="modal-foot">${id ? '<button type="button" class="btn danger" data-del>삭제</button>' : ''}<span class="spacer"></span>
       <button type="button" class="btn" data-close>취소</button><button type="submit" class="btn primary">저장</button></footer></form>`;
   const form = $('#entForm', dlg);
@@ -872,7 +1010,7 @@ function openForm(ent, id, preset = {}) {
     }
     const err = S.validate?.(data);
     if (err) { toast(err); return; }
-    S.beforeSave?.(data);
+    S.beforeSave?.(data, id ? rec : null);
     if (id) Object.assign(rec, data, { updated: today() });
     else state[ent].push({ id: uid(), ...data, created: today() });
     save(); dlg.close(); render(); toast('저장했습니다.');
@@ -884,6 +1022,7 @@ function openForm(ent, id, preset = {}) {
     }
   });
   dlg.querySelectorAll('[data-close]').forEach((b) => { b.onclick = () => dlg.close(); });
+  S.formInit?.(form, rec);
   const del = $('[data-del]', dlg);
   if (del) del.onclick = () => { if (removeRecord(ent, id)) dlg.close(); };
   dlg.showModal();
@@ -893,13 +1032,33 @@ function openForm(ent, id, preset = {}) {
 function removeRecord(ent, id) {
   if (!confirm('삭제할까요? 되돌릴 수 없습니다.')) return false;
   state[ent] = state[ent].filter((r) => r.id !== id);
-  if (ent === 'grants') state.expenses.forEach((x) => { if (x.grantId === id) x.grantId = ''; });
+  if (ent === 'grants') [...state.expenses, ...state.requests].forEach((x) => { if (x.grantId === id) x.grantId = ''; });
   if (ent === 'employees') {
     state.leaves = state.leaves.filter((l) => l.employeeId !== id);
+    state.requests.forEach((r) => { if (r.employeeId === id) r.employeeId = ''; });
     state.assets.forEach((a) => { if (a.assignee === id) { a.assignee = ''; a.status = '보관'; } });
   }
   save(); render(); toast('삭제했습니다.');
   return true;
+}
+
+/* ---------- 요청 단계 진행 ---------- */
+function reqAdvance(id) {
+  const r = state.requests.find((x) => x.id === id);
+  if (!r) return;
+  const i = REQ_FLOW.indexOf(r.status);
+  const next = i >= 0 && i < REQ_FLOW.length - 1 ? REQ_FLOW[i + 1] : r.status === '보류' ? '검토' : '';
+  if (!next) return;
+  if (next === '완료') {
+    const p = reqProgress(r);
+    if (p.total && p.done < p.total && !confirm(`체크리스트 ${p.total - p.done}건이 아직 남아 있습니다. 완료 처리할까요?`)) return;
+    r.doneAt = today();
+  }
+  r.status = next;
+  (r.log ||= []).push({ date: today(), status: next });
+  r.updated = today();
+  save(); render();
+  toast(`"${r.title}" → ${next}${next === '완료' && r.kind === '지출 요청' ? ' · 지출 등록 버튼으로 회계에 기록하세요' : ''}`);
 }
 
 /* ---------- 입·퇴사 체크리스트 ---------- */
@@ -990,6 +1149,12 @@ function loadSample() {
     { id: uid(), name: '(샘플) 협업툴 구독', counterparty: 'SaaS 업체', kind: 'SaaS·구독', end: addDays(t, 200), amount: 1200000, cycle: '연', autoRenew: true },
   );
   state.assets.push({ id: uid(), name: '노트북', kind: '노트북·PC', serial: 'NB-001', assignee: e1, purchaseDate: addDays(t, -480), price: 2300000, status: '사용중' });
+  state.requests.push(
+    { id: uid(), kind: '지출 요청', status: '검토', title: '(샘플) 개발용 모니터 2대 구매', requester: '개발팀', amount: 760000, account: '비품(자산)', vendor: '온라인몰', method: '법인카드', received: addDays(t, -2), due: addDays(t, 3), channel: '메신저', approver: '대표이사', ...reqPreset('지출 요청'), itemDone: { '견적서·청구서 수령': addDays(t, -1) }, log: [{ date: addDays(t, -2), status: '접수' }, { date: addDays(t, -1), status: '검토' }] },
+    { id: uid(), kind: '이체확인증', status: '접수', title: '(샘플) 서버 이용료 이체확인증 — 정산 시스템 업로드', requester: '창업진흥원', docType: '이체확인증', amount: 385000, vendor: '클라우드 서비스', grantId: g1, received: addDays(t, -4), due: addDays(t, -1), channel: '이메일', ...reqPreset('이체확인증'), log: [{ date: addDays(t, -4), status: '접수' }] },
+    { id: uid(), kind: '서류 발급', status: '처리중', title: '(샘플) 재직증명서 (대출 제출용)', requester: '샘플 개발자', employeeId: e1, docType: '재직증명서', received: addDays(t, -1), due: addDays(t, 1), channel: '구두', ...reqPreset('서류 발급'), itemDone: { '발급처·발급 방식 확인': t }, log: [{ date: addDays(t, -1), status: '접수' }, { date: t, status: '처리중' }] },
+    { id: uid(), kind: '서류 발급', status: '완료', title: '(샘플) 사업자등록증·통장사본 (거래처 등록)', requester: '고객사 구매팀', docType: '사업자등록증', received: addDays(t, -10), due: addDays(t, -8), doneAt: addDays(t, -9), channel: '이메일', ...reqPreset('서류 발급'), log: [{ date: addDays(t, -10), status: '접수' }, { date: addDays(t, -9), status: '완료' }] },
+  );
   state.todos.push(
     { id: uid(), title: '(샘플) 신입 4대보험 취득신고', category: '4대보험', due: addDays(t, 5), priority: '높음', status: '대기' },
     { id: uid(), title: '(샘플) 지원사업 증빙 서류 정리', category: '정부지원', due: addDays(t, -1), priority: '보통', status: '진행' },
@@ -1028,6 +1193,7 @@ document.addEventListener('click', (e) => {
       render(); break;
     }
     case 'onboard': makeChecklist(id, 'on'); break;
+    case 'req-next': reqAdvance(id); break;
     case 'offboard': makeChecklist(id, 'off'); break;
     case 'grant-exp': ui.expGrant = id; ui.expMonth = ''; location.hash = '#accounting'; break;
     case 'csv': exportCsv(ent); break;
@@ -1050,6 +1216,16 @@ document.addEventListener('change', (e) => {
     if (el.checked) state.done[el.dataset.key] = today(); else delete state.done[el.dataset.key];
     save(); render(); return;
   }
+  if (el.dataset.act === 'req-item') {
+    const r = state.requests.find((x) => x.id === el.dataset.id);
+    if (r) {
+      r.itemDone ||= {};
+      if (el.checked) r.itemDone[el.dataset.item] = today(); else delete r.itemDone[el.dataset.item];
+      ui.reqExpanded.add(r.id);
+      save(); render();
+    }
+    return;
+  }
   if (el.dataset.act === 'todo-done') {
     const t = state.todos.find((x) => x.id === el.dataset.id);
     if (t) { t.status = el.checked ? '완료' : '대기'; t.doneAt = el.checked ? today() : ''; save(); render(); }
@@ -1060,6 +1236,13 @@ document.addEventListener('change', (e) => {
     render();
   }
 });
+
+// details 열림 상태 기억 (toggle 이벤트는 버블링되지 않음)
+document.addEventListener('toggle', (e) => {
+  const d = e.target;
+  if (!d.matches?.('details.checks')) return;
+  if (d.open) ui.reqExpanded.add(d.dataset.id); else ui.reqExpanded.delete(d.dataset.id);
+}, true);
 
 document.addEventListener('input', (e) => {
   const el = e.target;
